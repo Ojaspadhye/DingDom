@@ -1,0 +1,14 @@
+# Enviorment
+.env
+
+# sql databases
+db.sqlite3
+
+# Logs
+*.log
+
+# pycache
+__pycache__/
+
+# For now migrations
+migrations/

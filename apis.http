@@ -1,0 +1,11 @@
+###
+POST http://127.0.0.1:8000/action/action/create_action/
+Content-Type: application/json
+
+{
+    "urls": "https://www.youtube.com/watch?v=vynvegQ9Ecw&t=858s",
+    "name": "up",
+    "frequency": 45,
+    "expected_status": 200,
+    "is_active": true
+}
