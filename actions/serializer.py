@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from actions.models import (PingLogs)
 
 class CreateActionSerializer(serializers.Serializer):
     STATUS = (
@@ -31,3 +32,50 @@ class CreateActionSerializer(serializers.Serializer):
             raise ValidationError("Expected Status is incorrect")
         
         return attrs
+
+
+class LogsSerializer(serializers.ModelSerializer):
+    kpi = serializers.SerializerMethodField()
+    details = serializers.SerializerMethodField()
+
+
+    def get_kpi(self, obj):
+        return {
+            "5 requests": {
+                "average": obj.avg_5req,
+                "std": obj.std_5req
+            },
+            "5 hour": {
+                "average": obj.avg_5hr,
+                "std": obj.avg_5hr
+            }
+        }
+
+    def get_details(self, obj):
+        if not obj.is_sucess and obj.error_message:
+            return {
+                "key_details": {
+                    "time_stamp": obj.timestamp,
+                    "response_time": obj.response_time,
+                    "status_code": obj.status_code
+                },
+                "is_sucess": obj.is_sucess
+            }
+        
+        return {
+            "key_details": {
+                "time_stamp": obj.timestamp,
+                "response_time": obj.response_time,
+                "status_code": obj.status_code
+            },
+            "is_sucess": obj.is_sucess,
+            "error": obj.error_message
+        }
+        
+    class Meta:
+        model=PingLogs
+        fields=[
+            "id",
+            "details",
+            "kpi"
+        ]

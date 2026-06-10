@@ -3,9 +3,10 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from actions.serializer import (CreateActionSerializer)
-from actions.services import (ActionServices, MoniterLogServices)
+from actions.serializer import (CreateActionSerializer, LogsSerializer)
+from actions.services import (ActionServices, MoniterLogServices, LogsServices)
 from rest_framework.response import Response
+from actions.models import PingLogs, Moniter
 import logging
 
 # Create your views here.
@@ -35,5 +36,14 @@ class CreateAction(viewsets.ViewSet):
 
 
 class GetPingLogs(viewsets.ReadOnlyModelViewSet):
-    pass
+    parser_classes = [JSONParser]
+    serializer_class = LogsSerializer
+
+    def get_queryset(self):
+        moniter_name = self.request.query_params.get("name")
+
+        if not moniter_name:
+            return PingLogs.objects.none()
+
+        return LogsServices.get_logs(moniter_name)
 

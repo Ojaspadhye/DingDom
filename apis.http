@@ -9,3 +9,6 @@ Content-Type: application/json
     "expected_status": 200,
     "is_active": true
 }
+
+###
+GET http://127.0.0.1:8000/action/logs/?name=1

@@ -20,4 +20,8 @@ class PingLogs(models.Model):
     status_code = models.IntegerField(null=True)
     error_message = models.TextField(null=True, blank=True)
     is_sucess = models.BooleanField()
+    avg_5hr = models.FloatField(null=True)
+    avg_5req = models.FloatField(null=True)
+    std_5hr = models.FloatField(null=True)
+    std_5req = models.FloatField(null=True)
 

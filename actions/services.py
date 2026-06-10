@@ -1,6 +1,7 @@
 from django.db import transaction
 from actions.models import (Moniter, PingLogs)
 from django.utils import timezone
+from datetime import timedelta
 from django_celery_beat.models import (PeriodicTask, IntervalSchedule)
 import logging
 import requests
@@ -75,7 +76,8 @@ class ActionServices:
 class LogsServices:
     @classmethod
     def get_logs(cls, moniter):
-        pass
+        return PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
+        
 
 
 class MoniterLogServices:
@@ -90,7 +92,7 @@ class MoniterLogServices:
     def _log_pings(self, data):
         try:
             with transaction.atomic():
-                PingLogs.objects.create(
+                ping = PingLogs.objects.create(
                     moniter=self.moniter,
                     timestamp=data.get("timestamp"),
                     response_time=data.get("response_time"),
@@ -98,6 +100,8 @@ class MoniterLogServices:
                     error_message=data.get("error_message"),
                     is_sucess=data.get("is_sucess")
                 )
+
+                return ping
 
                 
         except Exception as e:
@@ -109,6 +113,7 @@ class MoniterLogServices:
 
     def create_logs(self):
         data = {
+            "log": None,
             "timestamp": timezone.now(),
             "response_time": None,
             "status_code": None,
@@ -148,6 +153,54 @@ class MoniterLogServices:
             data["is_sucess"] = False
             logger.warning(f"error: {e}")
         
-        self._log_pings(data=data)
+        log = self._log_pings(data=data)
+        data["log"] = log
         return data
+
+
+class LogKpisServices:
+    '''
+    condition
+    5 hr avg --> 1
+    last 5 request --> 0
+    '''
+    def __init__(self, log, condition):
+        self.log = log
+        self.condition = condition
+
+    def _get_past_queryset(self):
+        moniter = self.log.moniter
+        # Later user will also be added.
+        # User specsific logic for get the query will be implemented
+        latency_list = []
+
+        query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
+
+        try:
+            if self.condition == 1:
+                test_time = timezone.now() - timedelta(hours=5)
+                for log in query_set:
+                    if log.timestamp < test_time:
+                        break
+
+                    latency_list.append(log.response_time)
+
+            elif self.condition == 0:
+                for log in query_set:
+                    latency_list.append(log.response_time)
+        
+        except Exception as e:
+            logger.log(e)
+
+        return latency_list
+
+    def kpi_func(self):
+        latency_list = self._get_past_queryset()
+        
+        if len(latency_list) != 0:
+            return sum(latency_list) / len(latency_list)
+        
+        return 0
+
+
 
