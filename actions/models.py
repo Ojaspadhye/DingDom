@@ -11,6 +11,7 @@ class Moniter(models.Model):
     is_active = models.BooleanField(default=True)
     last_checked = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    #deleted = models.BooleanField(default=False)
 
 
 class PingLogs(models.Model):

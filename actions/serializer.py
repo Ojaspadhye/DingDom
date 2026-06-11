@@ -34,6 +34,13 @@ class CreateActionSerializer(serializers.Serializer):
         return attrs
 
 
+class UpdateActionSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=50, required=False)
+    frequency = serializers.IntegerField(required=False)
+    expected_status = serializers.IntegerField(required=False)
+
+
+
 class LogsSerializer(serializers.ModelSerializer):
     kpi = serializers.SerializerMethodField()
     details = serializers.SerializerMethodField()

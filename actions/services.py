@@ -47,6 +47,7 @@ class ActionServices:
             return {
                 "message": "Action created Sucessfully",
                 "action": {
+                    "id": action.id,
                     "name": action.name,
                     "urls": action.urls,
                     "conditions": {
@@ -71,6 +72,44 @@ class ActionServices:
             return {
                 "error": "Something went wrong in sever"
             }
+    
+    @classmethod
+    def update_action(cls, data, moniter):
+        name = data.get("name")
+        frequency_hour = data.get("frequency")
+        expected_status = data.get("expected_status")
+
+        try:
+            if name:
+                moniter.name = name
+            if frequency_hour:
+                moniter.frequency_hour = frequency_hour
+            if expected_status:
+                moniter.expected_status = expected_status
+            
+            return {
+                "message": "Action created Sucessfully",
+                "action": {
+                    "name": moniter.name,
+                    "urls": moniter.urls,
+                    "conditions": {
+                        "expected_status": moniter.expected_status,
+                        "frequency": moniter.frequency_hour,
+                        "is_active": moniter.is_active
+                    },
+                    "dates": {
+                        "created_at": moniter.created_at,
+                        "last_checked": moniter.last_checked
+                    }
+                }
+            }
+        
+        except Exception as e:
+            logger.warning(e)
+            return {
+                "error": "Somthing is going wrong For now"
+            }
+
 
 
 class LogsServices:
@@ -174,10 +213,11 @@ class LogKpisServices:
         # User specsific logic for get the query will be implemented
         latency_list = []
 
-        query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
+        query_set = None
 
         try:
             if self.condition == 1:
+                query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
                 test_time = timezone.now() - timedelta(hours=5)
                 for log in query_set:
                     if log.timestamp < test_time:
@@ -186,9 +226,11 @@ class LogKpisServices:
                     latency_list.append(log.response_time)
 
             elif self.condition == 0:
+                query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")[:5]
+
                 for log in query_set:
-                    latency_list.append(log.response_time)
-        
+                    latency_list.append(log.response_time)      
+
         except Exception as e:
             logger.log(e)
 

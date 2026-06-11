@@ -12,3 +12,6 @@ __pycache__/
 
 # For now migrations
 migrations/
+
+rest-client.env.json
+

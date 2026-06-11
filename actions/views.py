@@ -1,9 +1,9 @@
 from django.shortcuts import render
-from rest_framework import viewsets
+from rest_framework import (viewsets, status)
 from rest_framework.decorators import action
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from actions.serializer import (CreateActionSerializer, LogsSerializer)
+from actions.serializer import (CreateActionSerializer, LogsSerializer, UpdateActionSerializer)
 from actions.services import (ActionServices, MoniterLogServices, LogsServices)
 from rest_framework.response import Response
 from actions.models import PingLogs, Moniter
@@ -31,8 +31,32 @@ class CreateAction(viewsets.ViewSet):
             response = {
                 "error": "Somthing went wrongs"
             }
+ 
+        if "error" in response:
+            return Response(response, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(response)
+        return Response(response, status=status.HTTP_201_CREATED)
+
+
+class UpdateAction(viewsets.ViewSet):
+    parser_classes = [JSONParser]
+
+    @action(methods=["patch", "post", "put"], detail=True)
+    def update_actions(self, request, pk=None):
+        if not Moniter.objects.filter(id=pk).exists():
+            raise Moniter.DoesNotExist("The Moniter Dosenot exists")
+        
+        moniter = Moniter.objects.filter(id=pk).first()
+
+        serilaizer = UpdateActionSerializer(data=request.data)
+        serilaizer.is_valid(raise_exception=True)
+
+        response = ActionServices.update_action(data=serilaizer.validated_data, moniter=moniter)
+
+        if "error" in response:
+            return Response(response, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(response, status=status.HTTP_200_OK)
 
 
 class GetPingLogs(viewsets.ReadOnlyModelViewSet):
