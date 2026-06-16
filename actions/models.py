@@ -14,6 +14,7 @@ class Moniter(models.Model):
     #deleted = models.BooleanField(default=False)
 
 
+# I Have made a big mistake of doing devication insted of standard deviation. I will clean in cleaning rounds
 class PingLogs(models.Model):
     moniter = models.ForeignKey(Moniter, on_delete=models.CASCADE)
     timestamp = models.DateTimeField()
@@ -25,4 +26,11 @@ class PingLogs(models.Model):
     avg_5req = models.FloatField(null=True)
     std_5hr = models.FloatField(null=True)
     std_5req = models.FloatField(null=True)
+
+
+class PingLogsKpis(models.Model):
+    moniter = models.ForeignKey(Moniter, on_delete=models.CASCADE)
+    cal_timestamp = models.DateTimeField() # When 5hr average was calculated
+    average = models.FloatField()
+    cal_timestamp_end = models.DateTimeField() # Expected Expiry time for this log. This is for refrence and testing only
 

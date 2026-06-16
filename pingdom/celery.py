@@ -17,4 +17,8 @@ app.conf.beat_schedule = {
         'task': 'actions.tasks.run_moniters',
         'schedule': crontab(minute='*'),
     },
+    'run-kpis-every-5mins': {
+        'task': 'actions.tasks.avg_per_5hr',
+        'schedule': crontab(minute='*/5')
+    }
 }

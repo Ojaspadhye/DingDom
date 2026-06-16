@@ -1,7 +1,8 @@
 from django.db import transaction
-from actions.models import (Moniter, PingLogs)
+from actions.models import (Moniter, PingLogs, PingLogsKpis)
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models import Avg
 from django_celery_beat.models import (PeriodicTask, IntervalSchedule)
 import logging
 import requests
@@ -115,20 +116,24 @@ class ActionServices:
 class LogsServices:
     @classmethod
     def get_logs(cls, moniter):
-        return PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
-        
+        try:
+            logs_query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
+            
+            return logs_query_set
+        except Exception as e:
+            logger.warning(e)
 
 
 class MoniterLogServices:
     def __init__(self, moniter):
         self.moniter = moniter
-        self.url = moniter.urls 
+        self.url = moniter.urls
 
     def _send_pings(self):
-        response = requests.get(url=self.url, timeout=5)
-        return response
-    
+        return requests.get(url=self.url, timeout=5)
+
     def _log_pings(self, data):
+
         try:
             with transaction.atomic():
                 ping = PingLogs.objects.create(
@@ -137,27 +142,27 @@ class MoniterLogServices:
                     response_time=data.get("response_time"),
                     status_code=data.get("status_code"),
                     error_message=data.get("error_message"),
-                    is_sucess=data.get("is_sucess")
+                    is_sucess=data.get("is_sucess"),
+                    avg_5hr=data.get("average"),
+                    std_5hr=data.get("std"),
                 )
-
                 return ping
 
-                
         except Exception as e:
             print(f"Database insertion failed: {e}")
+            return None
 
     def _validate_sucess(self, status_code):
         return status_code == self.moniter.expected_status
 
-
-    def create_logs(self):
+    def create_logs(self, kpi=None):
         data = {
             "log": None,
             "timestamp": timezone.now(),
             "response_time": None,
             "status_code": None,
             "error_message": None,
-            "is_sucess": False
+            "is_sucess": False,
         }
 
         try:
@@ -165,84 +170,90 @@ class MoniterLogServices:
             response = self._send_pings()
             end_timer = time.perf_counter()
 
-            data["response_time"] = (end_timer - start_timer)
-            response_code = response.status_code
+            data["response_time"] = end_timer - start_timer
+            data["status_code"] = response.status_code
+            data["is_sucess"] = self._validate_sucess(response.status_code)
 
-            data["status_code"] = response_code
-            data["is_sucess"] = self._validate_sucess(response_code)
-        
-        except requests.exceptions.Timeout as e:
-            data["error_message"] = str(e)
-            data["is_sucess"] = False
-        
-        except requests.exceptions.ConnectionError as e:
-            data["error_message"] = str(e)
-            data["is_sucess"] = False
-        
-        except requests.exceptions.HTTPError as e:
-            data["error_message"] = str(e)
-            data["is_sucess"] = False
-        
+            if kpi:
+                data["average"] = kpi.average
+
+                data["std"] = abs(kpi.average - data["response_time"])
+
+
         except requests.exceptions.RequestException as e:
             data["error_message"] = str(e)
             data["is_sucess"] = False
-        
-        except Exception as e:
-            data["error_message"] = f"Somthing went wrong in our system"
-            data["is_sucess"] = False
-            logger.warning(f"error: {e}")
-        
+            data["response_time"] = 0
+            data["status_code"] = 0
+
         log = self._log_pings(data=data)
         data["log"] = log
+
         return data
+    
 
 
-class LogKpisServices:
-    '''
+## I know for now this is a Happy Path AS i dont have a catch for is missing lig and moniter but i will fix
+'''
     condition
     5 hr avg --> 1
     last 5 request --> 0
-    '''
-    def __init__(self, log, condition):
+'''
+class LogKpisServices:
+    def __init__(self, condition, log=None, moniter=None):
         self.log = log
         self.condition = condition
+        self.moniter = moniter or (log.moniter if log else None)
 
     def _get_past_queryset(self):
-        moniter = self.log.moniter
-        # Later user will also be added.
-        # User specsific logic for get the query will be implemented
-        latency_list = []
+        if not self.moniter:
+            return 0
 
-        query_set = None
+        if self.condition == 1:
+            timespan = timezone.now() - timedelta(hours=5)
 
-        try:
-            if self.condition == 1:
-                query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
-                test_time = timezone.now() - timedelta(hours=5)
-                for log in query_set:
-                    if log.timestamp < test_time:
-                        break
+            return (
+                PingLogs.objects.filter(
+                    moniter=self.moniter,
+                    timestamp__gte=timespan
+                )
+                .aggregate(avg=Avg("response_time"))["avg"]
+            ) or 0
 
-                    latency_list.append(log.response_time)
-
-            elif self.condition == 0:
-                query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")[:5]
-
-                for log in query_set:
-                    latency_list.append(log.response_time)      
-
-        except Exception as e:
-            logger.log(e)
-
-        return latency_list
+        return (
+            PingLogs.objects.filter(moniter=self.moniter)
+            .order_by("-timestamp")[:5]
+            .aggregate(avg=Avg("response_time"))["avg"]
+        ) or 0
 
     def kpi_func(self):
-        latency_list = self._get_past_queryset()
-        
-        if len(latency_list) != 0:
-            return sum(latency_list) / len(latency_list)
-        
-        return 0
+        if not self.log and not self.moniter:
+            return {
+                "averages": 0
+            }
 
+        averages = self._get_past_queryset()
 
+        return {
+            "averages": averages,
+        }
+    
+    def create_ping_kpis(self):
+        try:
+            moniter = self.moniter
+            cal_timestamp = timezone.now()
+            cal_timestamp_end = timezone.now() + timedelta(minutes=5)
+            average_kpis = self.kpi_func().get("averages")
+
+            ping = PingLogsKpis.objects.create(
+                moniter=moniter,
+                cal_timestamp=cal_timestamp,
+                average=average_kpis,
+                cal_timestamp_end=cal_timestamp_end
+            )
+
+            return ping
+        
+        except Exception as e:
+            logger.warning(e)
 

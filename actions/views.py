@@ -68,6 +68,6 @@ class GetPingLogs(viewsets.ReadOnlyModelViewSet):
 
         if not moniter_name:
             return PingLogs.objects.none()
-
+        
         return LogsServices.get_logs(moniter_name)
 

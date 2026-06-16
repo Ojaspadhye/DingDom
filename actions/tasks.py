@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
-from actions.models import (Moniter)
+from actions.models import (Moniter, PingLogsKpis, )
 from actions.services import (MoniterLogServices, LogKpisServices)
 from django.db import transaction
 
@@ -13,19 +13,20 @@ def run_moniters():
         return "No moniter exisit"
     
     for moniter in moniter_querysets:
+        ping_kpi = None
+        if PingLogsKpis.objects.filter(moniter=moniter).exists():
+            ping_kpi = PingLogsKpis.objects.filter(moniter=moniter).latest("cal_timestamp")
+
         try:
             with transaction.atomic():
-                log_data = MoniterLogServices(moniter=moniter).create_logs()
+                log_data = MoniterLogServices(moniter=moniter).create_logs(kpi=ping_kpi)
                 log = log_data.get("log")
-                log_timestamp = log_data.get("time_stamp")
 
-                averages = LogKpisServices(condition=0, log=log).kpi_func()
-                diff = abs(averages - log_data.get("response_time"))
-                
-                moniter.last_checked = log_timestamp
+                kpi_data = LogKpisServices(condition=0, log=log).kpi_func()
 
-                log.avg_5req = averages
-                log.std_5req = diff
+                log.std_5hr = abs(log_data.get("response_time") - log.avg_5hr)
+                log.avg_5req = kpi_data.get("averages")
+                log.std_5req = abs(log_data.get("response_time") - kpi_data.get("averages"))
 
                 log.save()
                 moniter.save()
@@ -39,12 +40,21 @@ def run_moniters():
 
 @shared_task
 def avg_per_5hr():
-    moniter_queryset = Moniter.objects.all()
-
-    if not moniter_queryset:
-        return "No moniter query"
+    if not Moniter.objects.exists():
+        return "No monitors exist in the database."
+    
+    moniter_queryset = Moniter.objects.all().iterator()
     
     for moniter in moniter_queryset:
-        pass
-    
+        try:
+            kpi_service = LogKpisServices(condition=1, moniter=moniter)
+            kpi_5hr = kpi_service.create_ping_kpis()
+            
+            if not kpi_5hr:
+                print("Somthing went wrong didnt create")
+                return 
+            
+        except Exception as e:
+            print(e)
+
 

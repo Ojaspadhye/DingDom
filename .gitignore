@@ -15,3 +15,5 @@ migrations/
 
 rest-client.env.json
 
+# Special Management terminal commands
+actions/management/
