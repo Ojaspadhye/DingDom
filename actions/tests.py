@@ -3,9 +3,8 @@ from rest_framework.test import (APITestCase, APIClient)
 from actions.models import (Moniter, PingLogs)
 from django_celery_beat.models import (
     PeriodicTask, PeriodicTasks,
-    CrontabSchedule, ClockedSchedule,
-    IntervalSchedule, SolarSchedule
 )
+from actions.services import (MoniterLogServices, LogKpisServices, LogsServices)
 from rest_framework import status
 import json
 # Create your tests here.
@@ -83,9 +82,45 @@ class TestActions(APITestCase):
         pass
 
 
+'''
+    response_time = models.FloatField(max_length=10)
+    status_code = models.IntegerField(null=True)
+    error_message = models.TextField(null=True, blank=True)
+    is_sucess = models.BooleanField()
+    avg_5hr = models.FloatField(null=True)
+    avg_5req = models.FloatField(null=True)
+    std_5hr = models.FloatField(null=True)
+    std_5req = models.FloatField(null=True)
+'''
 class LogsTest():
+    response_1 = {
+        "response_time": 1.587523846,
+        "status_code": status.HTTP_200_OK,
+        "error_message": None,
+    }
+
+    response_1 = {
+        "response_time": 2.846365982,
+        "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+        "error_message": "Cool! I am optimestic. I couldent think of any error message",
+    }
+
+    hr5_kpi = {
+        "average": 1.846365982
+    }
+
     def setUp(self):
-        pass
+        self.moniter = Moniter.objects.create(
+            urls="https://httpbin.org/status/200",
+            name="httpbin",
+            frequency_hour=45,
+            expected_status=200,
+            is_active=True
+        )
+
+    def test_log_created(self):
+        self.moniter
+
 
     def get_update(self):
         pass
