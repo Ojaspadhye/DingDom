@@ -1,12 +1,18 @@
 from django.test import TestCase
 from rest_framework.test import (APITestCase, APIClient)
-from actions.models import (Moniter, PingLogs)
+from actions.models import (Moniter, PingLogs, PingLogsKpis)
 from django_celery_beat.models import (
     PeriodicTask, PeriodicTasks,
 )
 from actions.services import (MoniterLogServices, LogKpisServices, LogsServices)
 from rest_framework import status
 import json
+from unittest.mock import patch, MagicMock
+from .models import Moniter, PingLogs
+from .services import MoniterLogServices
+from django.utils import timezone
+from datetime import timedelta
+from freezegun import freeze_time
 # Create your tests here.
 
 class TestActions(APITestCase):
@@ -92,7 +98,7 @@ class TestActions(APITestCase):
     std_5hr = models.FloatField(null=True)
     std_5req = models.FloatField(null=True)
 '''
-class LogsTest():
+class LogsTest(APITestCase):
     response_1 = {
         "response_time": 1.587523846,
         "status_code": status.HTTP_200_OK,
@@ -118,15 +124,130 @@ class LogsTest():
             is_active=True
         )
 
+        self.moniter_magic = MagicMock()
+
     def test_log_created(self):
-        self.moniter
+        response_1 = {
+            "response_time": 1.587523846,
+            "status_code": status.HTTP_200_OK,
+            "error_message": None,
+        }
 
+    @patch("requests.get")
+    def test_successful_ping_creates_log(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_get.return_value = mock_response
 
-    def get_update(self):
+        service = MoniterLogServices(self.moniter)
+
+        result = service.create_logs()
+
+        self.assertIsNotNone(result["log"])
+        self.assertEqual(result["status_code"], 200)
+        self.assertTrue(result["is_sucess"])
+
+        self.assertEqual(PingLogs.objects.count(), 1)
+
+    @patch("requests.get")
+    def test_503_ping_records_failure(self, mock_get, *args, **kwargs):
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_response.json.return_value = {"message": "system error"} 
+
+        mock_get.return_value = mock_response
+
+        service = MoniterLogServices(self.moniter)
+        result = service.create_logs()
+
+        self.assertIsNotNone(result["log"])
+        self.assertEqual(result["status_code"], 503)
+        self.assertFalse(result["is_sucess"])
+
+        self.assertEqual(PingLogs.objects.count(), 1)
+
+    @freeze_time("2026-06-17 12:00:00")
+    @patch("requests.get")
+    def test_5hr_averages(self, *args, **kwargs):
+        now = timezone.now()
+
+        PingLogs.objects.create(
+            moniter=self.moniter,
+            timestamp=now - timedelta(hours=1),
+            response_time=2.747583,
+            status_code=200,
+            error_message=None,
+            is_sucess=True,
+        )
+
+        PingLogs.objects.create(
+            moniter=self.moniter,
+            timestamp=now - timedelta(hours=2),
+            response_time=1.523712,
+            status_code=200,
+            error_message=None,
+            is_sucess=True,
+        )
+
+        PingLogs.objects.create(
+            moniter=self.moniter,
+            timestamp=now - timedelta(hours=5),
+            response_time=2.132424,
+            status_code=200,
+            error_message=None,
+            is_sucess=True,
+        )
+
+        PingLogs.objects.create(
+            moniter=self.moniter,
+            timestamp=now - timedelta(hours=6),
+            response_time=6.2645932,
+            status_code=200,
+            error_message=None,
+            is_sucess=True,
+        )
+
+        before_count = PingLogsKpis.objects.count()
+
+        calculated_average = float((2.747583 + 2.132424 + 1.523712)/3)
+
+        kpi_5hr = LogKpisServices(condition=1 ,moniter=self.moniter).create_ping_kpis()
+
+        self.assertEqual((before_count + 1), PingLogsKpis.objects.count())
+        self.assertAlmostEqual(calculated_average, kpi_5hr.average, places=5)
+        
+        delta = abs(((now + timedelta(hours=5)) - kpi_5hr.cal_timestamp).total_seconds())
+        self.assertLessEqual(60, delta)
+
+    @freeze_time("2026-06-17 12:00:00")
+    @patch("requests.get")
+    def test_5hr_average_unhappy_path(self, *args, **kwargs):
+        now = timezone.now()
+
+        PingLogs.objects.create(
+            moniter=self.moniter,
+            timestamp=now - timedelta(hours=4),
+            response_time=None,
+            status_code=200,
+            error_message=None,
+            is_sucess=True,
+        )
+
+        expected_average = 0
+
+        before_count = PingLogsKpis.objects.count()
+
+        kpi_5hr = LogKpisServices(condition=1 ,moniter=self.moniter).create_ping_kpis()
+
+        self.assertEqual((before_count + 1), PingLogsKpis.objects.count())
+        self.assertEqual(expected_average, kpi_5hr.average)
+
+    
+    @freeze_time("2026-06-17 12:00:00")
+    @patch("requests.get")
+    def test_average_5hr_update(self, *args, **kwargs):
         pass
 
-    def kpis_1(self):
-        pass
 
     def kpis_2(self):
         pass

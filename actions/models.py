@@ -18,7 +18,7 @@ class Moniter(models.Model):
 class PingLogs(models.Model):
     moniter = models.ForeignKey(Moniter, on_delete=models.CASCADE)
     timestamp = models.DateTimeField()
-    response_time = models.FloatField(max_length=10)
+    response_time = models.FloatField(max_length=10, default=0, null=True)
     status_code = models.IntegerField(null=True)
     error_message = models.TextField(null=True, blank=True)
     is_sucess = models.BooleanField()
@@ -31,6 +31,6 @@ class PingLogs(models.Model):
 class PingLogsKpis(models.Model):
     moniter = models.ForeignKey(Moniter, on_delete=models.CASCADE)
     cal_timestamp = models.DateTimeField() # When 5hr average was calculated
-    average = models.FloatField()
+    average = models.FloatField(default=0.0)
     cal_timestamp_end = models.DateTimeField() # Expected Expiry time for this log. This is for refrence and testing only
 

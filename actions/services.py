@@ -159,7 +159,7 @@ class MoniterLogServices:
         data = {
             "log": None,
             "timestamp": timezone.now(),
-            "response_time": None,
+            "response_time": 0,
             "status_code": None,
             "error_message": None,
             "is_sucess": False,
@@ -183,7 +183,7 @@ class MoniterLogServices:
         except requests.exceptions.RequestException as e:
             data["error_message"] = str(e)
             data["is_sucess"] = False
-            data["response_time"] = 0
+            data["response_time"] = time.perf_counter() - start_timer
             data["status_code"] = 0
 
         log = self._log_pings(data=data)
