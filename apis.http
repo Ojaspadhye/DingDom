@@ -5,7 +5,7 @@ Content-Type: application/json
 {
     "urls": "https://httpbin.org/status/200",
     "name": "httpbin",
-    "frequency": 45,
+    "frequency": 50,
     "expected_status": 200,
     "is_active": true
 }
@@ -18,6 +18,9 @@ Content-Type: application/json
     "name": "up_song_youtube"
 }
 
+###
+PATCH http://127.0.0.1:8000/action/action/1/deactivate_actions/
+Content-Type: application/json
 
 ###
 GET http://127.0.0.1:8000/action/logs/?name=1

@@ -59,6 +59,28 @@ class UpdateAction(viewsets.ViewSet):
         return Response(response, status=status.HTTP_200_OK)
 
 
+class DeactivateAction(viewsets.ViewSet):
+    parser_classes = [JSONParser]
+
+    @action(methods=["patch"], detail=True)
+    def deactivate_actions(self, request, pk=None):
+        if not pk:
+            return Response({"error": "id not mentioned"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not Moniter.objects.filter(id=pk).exists():
+            return Response({
+                "error": "Object Not Found"
+            },
+            status=status.HTTP_404_NOT_FOUND
+        )
+        
+        response = ActionServices.deactivate_actions(pk=pk)
+
+        if "error" in response:
+            return Response(response, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(response, status=status.HTTP_200_OK)
+
 class GetPingLogs(viewsets.ReadOnlyModelViewSet):
     parser_classes = [JSONParser]
     serializer_class = LogsSerializer

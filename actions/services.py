@@ -113,6 +113,38 @@ class ActionServices:
 
 
 
+    @classmethod
+    def deactivate_actions(cls, pk):
+        try:
+            with transaction.atomic():
+
+                moniter = Moniter.objects.get(id=pk)
+
+                if not moniter.is_active:
+                    return {"error": "Service already deactivated"}
+
+                periodic_task = PeriodicTask.objects.filter(
+                    name=f"Ping Monitor {moniter.id}"
+                ).first()
+
+                periodic_task.enabled = False
+                periodic_task.save(update_fields=["enabled"])
+
+                moniter.is_active = False
+                moniter.save(update_fields=["is_active"])
+
+                return {"message": "Deactivated successfully"}
+
+        except Moniter.DoesNotExist:
+            return {"error": "Monitor not found"}
+
+        except Exception as e:
+            logger.exception(e)
+            return {"error": "Something went wrong"}
+
+
+
+
 class LogsServices:
     @classmethod
     def get_logs(cls, moniter):

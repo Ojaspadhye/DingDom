@@ -245,8 +245,35 @@ class LogsTest(APITestCase):
     
     @freeze_time("2026-06-17 12:00:00")
     @patch("requests.get")
-    def test_average_5hr_update(self, *args, **kwargs):
-        pass
+    def test_average_5hr_update(self, mock_get, *args, **kwargs):
+        kpi_log = PingLogsKpis.objects.create(
+            moniter=self.moniter,
+            cal_timestamp=timezone.now(),
+            average=2.347535,
+            cal_timestamp_end=timezone.now() + timedelta(hours=5)
+        )
+
+        self.moniter_magic.status_code = 200
+        mock_get.return_value = self.moniter_magic
+
+        service = MoniterLogServices(self.moniter)
+
+        result = service.create_logs(kpi=kpi_log)
+        print(result)
+
+        self.assertIsNotNone(result["log"])
+        self.assertEqual(result["status_code"], 200)
+        self.assertTrue(result["is_sucess"])
+
+        self.assertEqual(PingLogs.objects.count(), 1)
+        self.assertIsNotNone(result["log"])
+
+        created_log = result.get("log")
+
+        self.assertIsNotNone(created_log.avg_5hr)
+        self.assertEqual(created_log.avg_5hr, kpi_log.average)
+
+
 
 
     def kpis_2(self):
