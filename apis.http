@@ -23,4 +23,5 @@ PATCH http://127.0.0.1:8000/action/action/1/deactivate_actions/
 Content-Type: application/json
 
 ###
-GET http://127.0.0.1:8000/action/logs/?name=1
+GET http://127.0.0.1:8000/action/logs/?name=3
+

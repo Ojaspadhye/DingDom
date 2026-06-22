@@ -13,6 +13,9 @@ def run_moniters():
         return "No moniter exisit"
     
     for moniter in moniter_querysets:
+        if not moniter.is_active:
+            break
+        
         ping_kpi = None
         if PingLogsKpis.objects.filter(moniter=moniter).exists():
             ping_kpi = PingLogsKpis.objects.filter(moniter=moniter).latest("cal_timestamp")

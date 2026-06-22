@@ -3,7 +3,7 @@ from actions.models import (Moniter, PingLogs, PingLogsKpis)
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
-from django_celery_beat.models import (PeriodicTask, IntervalSchedule)
+from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
 import logging
 import requests
 import time
@@ -132,6 +132,8 @@ class ActionServices:
 
                 moniter.is_active = False
                 moniter.save(update_fields=["is_active"])
+
+                PeriodicTasks.update_changed()
 
                 return {"message": "Deactivated successfully"}
 
