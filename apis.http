@@ -25,3 +25,13 @@ Content-Type: application/json
 ###
 GET http://127.0.0.1:8000/action/logs/?name=3
 
+
+###
+POST http://127.0.0.1:8000/accounts/accounts/create_account/
+Content-Type: application/json
+
+{
+    "username": "OjasPadhye",
+    "email": "ojaspadhye@gamil.com"
+}
+

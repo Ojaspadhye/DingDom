@@ -25,7 +25,7 @@ class AccountTier(models.Model):
     )
     date = models.DateField(auto_now_add=True)
     
-    limit = models.IntegerField(max_length=2, default=5, null=True)
-    current_count = models.IntegerField(max_length=2, default=0, null=True)
+    limit = models.IntegerField(default=5, null=True)
+    current_count = models.IntegerField(default=0, null=True)
 
     account_tier = models.CharField(max_length=50, default="free")
