@@ -1,6 +1,7 @@
 from accounts.models import (UserAccount, AccountTier)
 from django.db import transaction
 import logging
+from rest_framework_simplejwt.tokens import RefreshToken
 
 logger = logging.getLogger("services")
 
@@ -21,16 +22,19 @@ class AccountServices:
         try:
             username = self.data.get("username")
             email = self.data.get("email")
+            password = self.data.get("password")
 
             with transaction.atomic():
                 user = UserAccount.objects.create(
                     username=username,
                     email=email
                 )
+                user.set_password(raw_password=password)
                 tier = AccountTier.objects.create(
                     account=user,
                     account_tier="free"
                 )
+                user.save()
 
                 return {
                     "message": "Free tier account initiated",
@@ -59,10 +63,39 @@ class AccountServices:
             user = UserAccount.objects.filter(id=self.id).first()
             user.is_active = False
 
+            user.save(update_fields=["is_active"])
+
             return {"message": "User Deactivated"}
         
-        except:
+        except Exception as e:
+            logger.warning(e)
             return {"error": "Something went wrong"}
+        
+
+    def login_account(self):
+        username = self.data.get("username")
+        password = self.data.get("password")
+
+        try:
+            user = UserAccount.objects.filter(username__iexact=username).first()
+
+            if not user.check_password(raw_password=password):
+                return {"error": "Incorrect data shared"}
+            
+            refresh_token = RefreshToken.for_user(user)
+            access_token = refresh_token.access_token
+
+            return {
+                "message": "Login Sucessfull",
+                "tokens": {
+                    "refresh token": str(refresh_token),
+                    "access token": str(access_token)
+                }
+            }
+        
+        except Exception as e:
+            logger.warning(e)
+            return {"error": e}
 
 
 

@@ -1,6 +1,7 @@
 ###
 POST http://127.0.0.1:8000/action/action/create_action/
 Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgyMzQ5NDEyLCJpYXQiOjE3ODIzMDYyMTIsImp0aSI6IjRkMDJhN2ExZTFmOTRkODY4OWUxMTg3OTEyYjRkZmFjIiwidXNlcl9pZCI6IjIifQ.sO1iw4slN1Q9H1YAsiNDONbQyzOA9xH2va1oN8fHWXc
 
 {
     "urls": "https://httpbin.org/status/200",
@@ -31,7 +32,23 @@ POST http://127.0.0.1:8000/accounts/accounts/create_account/
 Content-Type: application/json
 
 {
-    "username": "OjasPadhye",
-    "email": "ojaspadhye@gamil.com"
+    "username": "Ojas_Padhye",
+    "email": "ojaspadh+ye@gamil.com",
+    "password": "Hero--9993"
 }
 
+###
+POST http://127.0.0.1:8000/accounts/accounts/login_account/
+Content-Type: application/json
+
+{
+    "username": "Ojas_Padhye",
+    "password": "Hero--9993"
+}
+
+
+### 
+PATCH http://127.0.0.1:8000/accounts/accounts/1/deactivate_acount/
+Content-Type: application/json
+
+### TOKEN : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgyMzQ5NDEyLCJpYXQiOjE3ODIzMDYyMTIsImp0aSI6IjRkMDJhN2ExZTFmOTRkODY4OWUxMTg3OTEyYjRkZmFjIiwidXNlcl9pZCI6IjIifQ.sO1iw4slN1Q9H1YAsiNDONbQyzOA9xH2va1oN8fHWXc

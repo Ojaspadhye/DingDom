@@ -16,7 +16,7 @@ logger = logging.getLogger("services")
 
 class CreateAction(viewsets.ViewSet):
     parser_classes=[JSONParser]
-    permission_classes=[AllowAny]
+    permission_classes=[IsAuthenticated]
 
     @action(methods=['post'], detail=False)
     def create_action(self, request):
@@ -24,7 +24,8 @@ class CreateAction(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            response = ActionServices.create_action(data=serializer.validated_data)
+            obj = ActionServices(data=serializer.validated_data, user=request.user)
+            response = obj.create_action()
         
         except Exception as e:
             logger.warning(f"error: {e}")

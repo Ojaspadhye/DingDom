@@ -1,5 +1,5 @@
 from django.db import transaction
-from actions.models import (Moniter, PingLogs, PingLogsKpis)
+from actions.models import (Moniter, PingLogs, PingLogsKpis, AccountService)
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
@@ -14,25 +14,30 @@ logger = logging.getLogger("services")
 
 
 class ActionServices:
-    @classmethod
-    def create_action(cls, data):
-        #user = data.get("user")
-        urls = data.get("urls")
-        name = data.get("name")
-        freq = data.get("frequency")
-        status = data.get("expected_status")
-        is_active = data.get("is_active", True)
+    def __init__(self, data=None, user=None):
+        self.user = user
+        self.data = data
+
+    def create_action(self):
+        user = self.user
+        urls = self.data.get("urls")
+        name = self.data.get("name")
+        freq = self.data.get("frequency")
+        status = self.data.get("expected_status")
+        is_active = self.data.get("is_active", True)
 
         try:
             with transaction.atomic():
-                action = Moniter.objects.create(
-                    urls=urls,
+                action = AccountService.objects.create(
+                    account=user,
+                    url=urls,
                     name=name,
                     frequency_hour=freq,
                     expected_status=status,
                     is_active=is_active
                 )
 
+                '''             
                 schedule, _ = IntervalSchedule.objects.get_or_create(
                     every=freq,
                     period=IntervalSchedule.HOURS
@@ -44,21 +49,20 @@ class ActionServices:
                     task='actions.tasks.universal_ping_worker',
                     args=json.dumps([action.id]),
                 )
-
+                '''
             return {
                 "message": "Action created Sucessfully",
                 "action": {
                     "id": action.id,
                     "name": action.name,
-                    "urls": action.urls,
+                    "urls": action.url,
                     "conditions": {
                         "expected_status": action.expected_status,
                         "frequency": action.frequency_hour,
                         "is_active": action.is_active
                     },
                     "dates": {
-                        "created_at": action.created_at,
-                        "last_checked": action.last_checked
+                        "created_at": action.created_at
                     }
                 }
             }
