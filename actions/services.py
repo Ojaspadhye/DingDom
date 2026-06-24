@@ -18,6 +18,64 @@ class ActionServices:
         self.user = user
         self.data = data
 
+    def _check_multiple(self, freq_1, freq_2):
+        response = False
+        common_multiple = None
+
+        if (freq_1 % freq_2 == 0):
+            response=True
+            common_multiple = freq_2
+
+        elif (freq_2 % freq_1 == 0):
+            response = True
+            common_multiple = freq_1
+
+        return response, common_multiple
+    
+    
+    def _can_coexist(self, freq_1, freq_2):
+        pass
+
+
+    def _check_action(self, action: AccountService):
+        if not action:
+            raise Exception()
+        
+        urls = action.urls
+
+        try:
+            with transaction.atomic():
+                moniter, created = Moniter.objects.get_or_create(
+                    urls=urls,
+                    frequency_hour=action.frequency_hour,
+                    is_active=True
+                )
+
+                if created:
+                    schedule, _ = IntervalSchedule.objects.get_or_create(
+                        every=action.frequency_hour,
+                        period=IntervalSchedule.HOURS
+                    )
+
+                    PeriodicTask.objects.create(
+                        interval=schedule,
+                        name=f'Ping Monitor {action.id}',
+                        task='actions.tasks.universal_ping_worker',
+                        args=json.dumps([action.id]),
+                    )
+                
+                else:
+                    existing_frequency = moniter.frequency_hour
+                    demanded_frequency = action.frequency_hour
+
+                    
+
+                action.connection_id = moniter
+                action.save(update_fields=["connection_id"])
+
+        except:
+            return
+
     def create_action(self):
         user = self.user
         urls = self.data.get("urls")
@@ -30,26 +88,14 @@ class ActionServices:
             with transaction.atomic():
                 action = AccountService.objects.create(
                     account=user,
-                    url=urls,
+                    urls=urls,
                     name=name,
                     frequency_hour=freq,
                     expected_status=status,
                     is_active=is_active
                 )
 
-                '''             
-                schedule, _ = IntervalSchedule.objects.get_or_create(
-                    every=freq,
-                    period=IntervalSchedule.HOURS
-                )
 
-                PeriodicTask.objects.create(
-                    interval=schedule,
-                    name=f'Ping Monitor {action.id}',
-                    task='actions.tasks.universal_ping_worker',
-                    args=json.dumps([action.id]),
-                )
-                '''
             return {
                 "message": "Action created Sucessfully",
                 "action": {

@@ -2,14 +2,7 @@ from django.db import models
 
 # Create your models here.
 
-class AccountService(models.Model):
-    account = models.ForeignKey("accounts.UserAccount", on_delete=models.CASCADE)
-    name = models.CharField(max_length=100, null=True)
-    url = models.URLField()
-    frequency_hour = models.CharField(default=5)
-    expected_status = models.IntegerField(default=200)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
 
 class Moniter(models.Model):
     urls = models.URLField()
@@ -21,7 +14,17 @@ class Moniter(models.Model):
     #name = models.CharField(max_length=100)
     #expected_status = models.IntegerField(default=200) # I dont think i will need them anymore
     #user = models.ForeignKey()
-    
+
+class AccountService(models.Model):
+    account = models.ForeignKey("accounts.UserAccount", on_delete=models.CASCADE)
+    name = models.CharField(max_length=100, null=True)
+    url = models.URLField()
+    frequency_hour = models.CharField(default=5)
+    expected_status = models.IntegerField(default=200)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    connection_id = models.ForeignKey(Moniter, on_delete=models.SET_NULL, null=True)
+
 # I Have made a big mistake of doing devication insted of standard deviation. I will clean in cleaning rounds
 class PingLogs(models.Model):
     moniter = models.ForeignKey(Moniter, on_delete=models.CASCADE)
