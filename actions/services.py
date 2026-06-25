@@ -3,7 +3,10 @@ from actions.models import (Moniter, PingLogs, PingLogsKpis, AccountService)
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
+from actions.models import (AccountService)
 from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
+from collections import deque
+import math
 import logging
 import requests
 import time
@@ -11,6 +14,84 @@ import json
 
 
 logger = logging.getLogger("services")
+
+'''
+Coexists check multiple didnt work that well.
+Using TimeWheeleSchedule method
+'''
+
+class TimeWheelSchedule:
+    def __init__(self, schedule: IntervalSchedule, periodic_task: PeriodicTasks):
+        self.schedule = schedule
+        self.periodic_task = periodic_task
+        self.wheel_size = 12
+        self.tick_duration_mins = 5
+        self.counter = 0
+        self.slot = [deque() for _ in range(self.wheel_size)]
+
+    def adition_task(self, action: AccountService):
+        interval_mins = int(float(action.frequency_hour) * 60)
+
+        if interval_mins % self.tick_duration_mins != 0:
+            interval_mins = max(
+                self.tick_duration_mins,
+                (interval_mins // self.tick_duration_mins) * self.tick_duration_mins
+            )
+        
+        total_ticks_needed = interval_mins // self.tick_duration_mins
+        target_slot = (self.counter + total_ticks_needed) % self.wheel_size
+
+        laps = total_ticks_needed // self.wheel_size
+
+        payload = {
+            "action_id": action.id,
+            "moniter_id": action.connection_id.id if action.connection_id else None,
+            "url": action.url,
+            "expected_status": action.expected_status,
+            "remaning_laps": laps,
+            "interval_mins": interval_mins
+        }
+
+        self.slots[target_slot].append(payload)
+
+
+    def tick(self, ):
+        self.counter = (self.counter + 1) % self.wheel_size
+        bucket = self.slot[self.counter]
+
+        tasks_run = []
+        waiting_task = deque()
+
+        while bucket:
+            task = bucket.popleft()
+
+            if task["remaning_laps"] > 0:
+                task["remaning_laps"] -= 1
+                waiting_task.append(task)
+            
+            else:
+                tasks_run.append(task)
+        
+        self.slot[self.counter] = waiting_task
+
+        moniter_groups = {}
+        for task in tasks_run:
+            moniter_id = task["moniter_id"]
+            if moniter_id not in moniter_groups:
+                moniter_groups[moniter_id] = []
+            
+            moniter_groups[moniter_id].append(task)
+
+        for moniter_id, grouped_taks in moniter_groups.items():
+            representative_task = grouped_taks[0]
+            url = representative_task["url"]
+
+            try:
+                ## Loging Thingi
+                pass
+            except:
+                ## Few other things 
+                pass
 
 
 class ActionServices:
@@ -32,12 +113,9 @@ class ActionServices:
 
         return response, common_multiple
     
-    
-    def _can_coexist(self, freq_1, freq_2):
-        pass
 
 
-    def _check_action(self, action: AccountService):
+    def _check_and_create_action(self, action: AccountService):
         if not action:
             raise Exception()
         
@@ -53,8 +131,11 @@ class ActionServices:
 
                 if created:
                     schedule, _ = IntervalSchedule.objects.get_or_create(
-                        every=action.frequency_hour,
-                        period=IntervalSchedule.HOURS
+                        id=moniter.id,
+                        defaults =  {
+                            'every' :action.frequency_hour,
+                            'period' : IntervalSchedule.HOURS
+                        }
                     )
 
                     PeriodicTask.objects.create(
@@ -65,8 +146,23 @@ class ActionServices:
                     )
                 
                 else:
-                    existing_frequency = moniter.frequency_hour
-                    demanded_frequency = action.frequency_hour
+                    schedule = IntervalSchedule.objects.filter(id=moniter.id).first()
+                    periodic_task = PeriodicTask.objects.filter(interval=schedule).first()
+
+                    time_scheduler = TimeWheelSchedule(schedule=schedule, periodic_task=periodic_task)
+                    scheduled_response = time_scheduler.schedule()
+
+                    if "error" in scheduled_response:
+                        return {
+                            "error": "Somthing went wrong in scheduling"
+                        }
+                    
+
+
+
+
+                existing_frequency = moniter.frequency_hour
+                demanded_frequency = action.frequency_hour
 
                     
 
