@@ -24,7 +24,9 @@ class RedisTimeWheelSchedule: # Redis More flexible
     pass
 
 
-class TimeWheelSchedule: # In memory python dquoe Shit Scaling Nightmare
+from collections import deque
+
+class TimeWheelSchedule: # In memory python deque Shit Scaling Nightmare
     def __init__(self):
         self.wheel_size = 12
         self.tick_duration_mins = 5
@@ -32,30 +34,28 @@ class TimeWheelSchedule: # In memory python dquoe Shit Scaling Nightmare
         self.slot = [deque() for _ in range(self.wheel_size)]
 
     def adition_of_task(self, action: AccountService):
-        interval_mins = int(float(action.frequency_hour) * 60)
+        frequency = int(float(action.frequency_hour))
+        if frequency <= 0:
+            logger.warning(f"Invalid frequency {frequency} for action {action.id}. Defaulting to 1.")
+            frequency = 1
 
-        if interval_mins % self.tick_duration_mins != 0:
-            interval_mins = max(
-                self.tick_duration_mins,
-                (interval_mins // self.tick_duration_mins) * self.tick_duration_mins
-            )
-        
-        total_ticks_needed = interval_mins // self.tick_duration_mins
-        target_slot = (self.counter + total_ticks_needed) % self.wheel_size
+        interval_mins = 60 // frequency
 
-        laps = total_ticks_needed // self.wheel_size
+        slot_step = max(1, interval_mins // self.tick_duration_mins)
 
         payload = {
             "action_id": action.id,
             "moniter": action.connection_id if action.connection_id else None,
             "url": action.url,
             "expected_status": action.expected_status,
-            "remaning_laps": laps,
+            "remaning_laps": 0, 
             "interval_mins": interval_mins
         }
-        logger.info(payload)
 
+        target_slot = (self.counter + slot_step) % self.wheel_size
+        
         self.slot[target_slot].append(payload)
+        logger.info(f"Scheduled task {action.id} to run next in Slot {target_slot} (Step: {slot_step} slots)")
 
 
     def tick(self):
@@ -63,11 +63,9 @@ class TimeWheelSchedule: # In memory python dquoe Shit Scaling Nightmare
         logger.info(f"Processing Slot {self.counter}: {bucket}")
 
         tasks_run = []
-        waiting_task = deque()
 
         while bucket:
             task = bucket.popleft()
-
             tasks_run.append(task)
 
         self.slot[self.counter] = deque()
@@ -94,13 +92,11 @@ class TimeWheelSchedule: # In memory python dquoe Shit Scaling Nightmare
                         id=task["action_id"],
                         is_active=True
                     )
-
                     self.adition_of_task(db_actions) 
                 except Exception as e:
                     logger.warning(f"Time Wheel/requeing failed: {e}")
 
         self.counter = (self.counter + 1) % self.wheel_size
-
 
 
 class ActionServices:
