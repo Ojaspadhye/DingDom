@@ -3,8 +3,14 @@ from django.core.exceptions import ObjectDoesNotExist
 from actions.models import (Moniter, PingLogsKpis, )
 from actions.services import (MoniterLogServices, LogKpisServices)
 from django.db import transaction
+from actions.schedulers import base_wheel, global_wheel
+import logging
 
 
+logger = logging.getLogger(__name__)
+
+
+'''
 @shared_task
 def run_moniters():
     moniter_querysets = Moniter.objects.all()
@@ -41,6 +47,7 @@ def run_moniters():
 
     return f"{moniter_querysets.count()}"
 
+    
 @shared_task
 def avg_per_5hr():
     if not Moniter.objects.exists():
@@ -59,5 +66,23 @@ def avg_per_5hr():
             
         except Exception as e:
             print(e)
+'''
 
+@shared_task
+def wheel_tick():
+    try:
+        if hasattr(global_wheel, "slot"):
+            wheel_empty = all(len(slot) == 0 for slot in global_wheel.slot)
+        else:
+            wheel_empty = False
+        
+        if wheel_empty:
+            logger.info("base_wheel implemented")
+            base_wheel()
+
+
+        logger.info("Wheel ticke initiated")
+        global_wheel.tick()
+    except Exception as e:
+        logger.warning(e)
 

@@ -16,7 +16,7 @@ logger = logging.getLogger("services")
 
 class CreateAction(viewsets.ViewSet):
     parser_classes=[JSONParser]
-    permission_classes=[IsAuthenticated]
+    permission_classes=[AllowAny, IsAuthenticated]
 
     @action(methods=['post'], detail=False)
     def create_action(self, request):

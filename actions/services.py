@@ -4,7 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
 from actions.models import (AccountService)
-from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
+#from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
 from collections import deque
 import math
 import logging
@@ -20,16 +20,18 @@ Coexists check multiple didnt work that well.
 Using TimeWheeleSchedule method
 '''
 
-class TimeWheelSchedule:
-    def __init__(self, schedule: IntervalSchedule, periodic_task: PeriodicTasks):
-        self.schedule = schedule
-        self.periodic_task = periodic_task
+class RedisTimeWheelSchedule: # Redis More flexible
+    pass
+
+
+class TimeWheelSchedule: # In memory python dquoe Shit Scaling Nightmare
+    def __init__(self):
         self.wheel_size = 12
         self.tick_duration_mins = 5
         self.counter = 0
         self.slot = [deque() for _ in range(self.wheel_size)]
 
-    def adition_task(self, action: AccountService):
+    def adition_of_task(self, action: AccountService):
         interval_mins = int(float(action.frequency_hour) * 60)
 
         if interval_mins % self.tick_duration_mins != 0:
@@ -45,19 +47,20 @@ class TimeWheelSchedule:
 
         payload = {
             "action_id": action.id,
-            "moniter_id": action.connection_id.id if action.connection_id else None,
+            "moniter": action.connection_id if action.connection_id else None,
             "url": action.url,
             "expected_status": action.expected_status,
             "remaning_laps": laps,
             "interval_mins": interval_mins
         }
+        logger.info(payload)
 
-        self.slots[target_slot].append(payload)
+        self.slot[target_slot].append(payload)
 
 
-    def tick(self, ):
-        self.counter = (self.counter + 1) % self.wheel_size
+    def tick(self):
         bucket = self.slot[self.counter]
+        logger.info(f"Processing Slot {self.counter}: {bucket}")
 
         tasks_run = []
         waiting_task = deque()
@@ -65,61 +68,53 @@ class TimeWheelSchedule:
         while bucket:
             task = bucket.popleft()
 
-            if task["remaning_laps"] > 0:
-                task["remaning_laps"] -= 1
-                waiting_task.append(task)
-            
-            else:
-                tasks_run.append(task)
-        
-        self.slot[self.counter] = waiting_task
+            tasks_run.append(task)
+
+        self.slot[self.counter] = deque()
 
         moniter_groups = {}
         for task in tasks_run:
-            moniter_id = task["moniter_id"]
-            if moniter_id not in moniter_groups:
-                moniter_groups[moniter_id] = []
-            
-            moniter_groups[moniter_id].append(task)
-
-        for moniter_id, grouped_taks in moniter_groups.items():
-            representative_task = grouped_taks[0]
-            url = representative_task["url"]
-
+            moniter = task["moniter"]
+            if moniter not in moniter_groups:
+                moniter_groups[moniter] = []
+            moniter_groups[moniter].append(task)
+        
+        for moniter, grouped_taks in moniter_groups.items():
             try:
-                ## Loging Thingi
-                pass
-            except:
-                ## Few other things 
-                pass
+                logger.info(f"Executing network checks for monitor: {moniter}")
+                obj = MoniterLogServices(moniter=moniter)
+                data = obj.create_logs(kpi=None)
+            except Exception as e:
+                logger.warning(f"Time Wheel execution error: {e}")
+                data = {}
+
+            for task in grouped_taks:
+                try:
+                    db_actions = AccountService.objects.get(
+                        id=task["action_id"],
+                        is_active=True
+                    )
+
+                    self.adition_of_task(db_actions) 
+                except Exception as e:
+                    logger.warning(f"Time Wheel/requeing failed: {e}")
+
+        self.counter = (self.counter + 1) % self.wheel_size
+
 
 
 class ActionServices:
     def __init__(self, data=None, user=None):
         self.user = user
         self.data = data
-
-    def _check_multiple(self, freq_1, freq_2):
-        response = False
-        common_multiple = None
-
-        if (freq_1 % freq_2 == 0):
-            response=True
-            common_multiple = freq_2
-
-        elif (freq_2 % freq_1 == 0):
-            response = True
-            common_multiple = freq_1
-
-        return response, common_multiple
-    
+        self.default_every = 12 # Every 5 mins or 12 times in hour
 
 
-    def _check_and_create_action(self, action: AccountService):
+    def _check_and_create_action(self, action: AccountService): ## If Check completed returns true elses false
         if not action:
             raise Exception()
         
-        urls = action.urls
+        urls = action.url
 
         try:
             with transaction.atomic():
@@ -129,48 +124,15 @@ class ActionServices:
                     is_active=True
                 )
 
-                if created:
-                    schedule, _ = IntervalSchedule.objects.get_or_create(
-                        id=moniter.id,
-                        defaults =  {
-                            'every' :action.frequency_hour,
-                            'period' : IntervalSchedule.HOURS
-                        }
-                    )
-
-                    PeriodicTask.objects.create(
-                        interval=schedule,
-                        name=f'Ping Monitor {action.id}',
-                        task='actions.tasks.universal_ping_worker',
-                        args=json.dumps([action.id]),
-                    )
-                
-                else:
-                    schedule = IntervalSchedule.objects.filter(id=moniter.id).first()
-                    periodic_task = PeriodicTask.objects.filter(interval=schedule).first()
-
-                    time_scheduler = TimeWheelSchedule(schedule=schedule, periodic_task=periodic_task)
-                    scheduled_response = time_scheduler.schedule()
-
-                    if "error" in scheduled_response:
-                        return {
-                            "error": "Somthing went wrong in scheduling"
-                        }
-                    
-
-
-
-
-                existing_frequency = moniter.frequency_hour
-                demanded_frequency = action.frequency_hour
-
-                    
+                TimeWheelSchedule().adition_of_task(action=action)
 
                 action.connection_id = moniter
                 action.save(update_fields=["connection_id"])
+                return True
 
-        except:
-            return
+        except Exception as e:
+            logger.warning(f"Action Service {e}")
+            return False
 
     def create_action(self):
         user = self.user
@@ -184,30 +146,39 @@ class ActionServices:
             with transaction.atomic():
                 action = AccountService.objects.create(
                     account=user,
-                    urls=urls,
+                    url=urls,
                     name=name,
                     frequency_hour=freq,
                     expected_status=status,
                     is_active=is_active
                 )
 
+                checks = self._check_and_create_action(action=action)
 
-            return {
-                "message": "Action created Sucessfully",
-                "action": {
-                    "id": action.id,
-                    "name": action.name,
-                    "urls": action.url,
-                    "conditions": {
-                        "expected_status": action.expected_status,
-                        "frequency": action.frequency_hour,
-                        "is_active": action.is_active
-                    },
-                    "dates": {
-                        "created_at": action.created_at
+                if not checks:
+                    transaction.set_rollback(True)
+                    logger.warning(f"Checks Failed Somewhere")
+                    return {
+                        "error": "System failed in checks"
+                    }
+
+
+                return {
+                    "message": "Action created Sucessfully",
+                    "action": {
+                        "id": action.id,
+                        "name": action.name,
+                        "urls": action.url,
+                        "conditions": {
+                            "expected_status": action.expected_status,
+                            "frequency": action.frequency_hour,
+                            "is_active": action.is_active
+                        },
+                        "dates": {
+                            "created_at": action.created_at
+                        }
                     }
                 }
-            }
 
         except ValueError as e:
             return {
@@ -258,7 +229,7 @@ class ActionServices:
             }
 
 
-
+    '''
     @classmethod
     def deactivate_actions(cls, pk):
         try:
@@ -289,7 +260,7 @@ class ActionServices:
         except Exception as e:
             logger.exception(e)
             return {"error": "Something went wrong"}
-
+        '''
 
 
 
@@ -333,7 +304,8 @@ class MoniterLogServices:
             return None
 
     def _validate_sucess(self, status_code):
-        return status_code == self.moniter.expected_status
+        return True
+#        return status_code == self.moniter.expected_status
 
     def create_logs(self, kpi=None):
         data = {

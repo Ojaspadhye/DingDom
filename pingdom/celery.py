@@ -11,7 +11,7 @@ app.autodiscover_tasks()
 
 app.conf.beat_scheduler = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-
+'''
 app.conf.beat_schedule = {
     'run-monitors-every-minute': {
         'task': 'actions.tasks.run_moniters',
@@ -22,3 +22,5 @@ app.conf.beat_schedule = {
         'schedule': crontab(minute='*/5')
     }
 }
+'''
+

@@ -1,12 +1,12 @@
 ###
 POST http://127.0.0.1:8000/action/action/create_action/
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgyMzQ5NDEyLCJpYXQiOjE3ODIzMDYyMTIsImp0aSI6IjRkMDJhN2ExZTFmOTRkODY4OWUxMTg3OTEyYjRkZmFjIiwidXNlcl9pZCI6IjIifQ.sO1iw4slN1Q9H1YAsiNDONbQyzOA9xH2va1oN8fHWXc
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgyNjcyMTY4LCJpYXQiOjE3ODI2Mjg5NjgsImp0aSI6IjdjNDFmOGJmNWYxMzRkNzA4ZWMyMzEwMzVmZGU1ZTgyIiwidXNlcl9pZCI6IjEifQ.NzAaR3L1EX2e-QEtZL3YucwObMsaRqV0iCAiwLI1QRU
 
 {
     "urls": "https://httpbin.org/status/200",
     "name": "httpbin",
-    "frequency": 50,
+    "frequency": 12,
     "expected_status": 200,
     "is_active": true
 }
