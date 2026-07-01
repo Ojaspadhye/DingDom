@@ -6,7 +6,7 @@ from django.db import models
 
 class Moniter(models.Model):
     urls = models.URLField()
-    frequency_hour = models.CharField(default=5)
+    frequency_hour = models.FloatField(default=12)
     is_active = models.BooleanField(default=True)
     last_checked = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -19,7 +19,7 @@ class AccountService(models.Model):
     account = models.ForeignKey("accounts.UserAccount", on_delete=models.CASCADE)
     name = models.CharField(max_length=100, null=True)
     url = models.URLField()
-    frequency_hour = models.CharField(default=5)
+    frequency_hour = models.FloatField(default=12)
     expected_status = models.IntegerField(default=200)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

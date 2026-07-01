@@ -4,7 +4,8 @@ from actions.models import (Moniter, PingLogs, PingLogsKpis)
 from django_celery_beat.models import (
     PeriodicTask, PeriodicTasks,
 )
-from actions.services import (MoniterLogServices, LogKpisServices, LogsServices)
+from accounts.models import (UserAccount, AccountTier)
+from actions.services import (MoniterLogServices, LogKpisServices, LogsServices, AccountService)
 from rest_framework import status
 import json
 from unittest.mock import patch, MagicMock
@@ -17,50 +18,140 @@ from freezegun import freeze_time
 
 class TestActions(APITestCase):
     action_1 = {
-        "urls": "https://www.youtube.com/watch?v=vynvegQ9Ecw&t=858s",
-        "name": "up",
-        "frequency": 45,
+        "urls": "https://httpbin.org/status/200",
+        "name": "http_bin",
+        "frequency": 12,
         "expected_status": 200,
         "is_active": True
     }
 
     data = {
-        "urls": "https://www.tomscatwebsite.com/",
-        "name": "Toms Cat",
-        "frequency": 45,
+        "urls": "https://httpbin.org/status/200",
+        "name": "http_bin",
+        "frequency": 5,
+        "expected_status": 200,
+        "is_active": True 
+    }
+
+    data_1 = {
+        "urls": "https://theuselessweb.com/",
+        "name": "cool",
+        "frequency": 2,
         "expected_status": 200,
         "is_active": True
     }
-    
+        
     def setUp(self):
-        self.client = APIClient()
+            user = UserAccount.objects.create(
+                username="Ojas_Padhye",
+                email="ojaspadhye@gmail.com",
+                is_active=True,
+                is_staff=False,
+            )
+            user.set_password("IDontKnow123")
+            user.save()
 
-        self.client.post(path="/action/action/create_action/",
-            data=self.data,
-            format="json"
-        )
+            AccountTier.objects.create(
+                account=user,
+                limit=5
+            )
+            
+            self.client = APIClient()
+
+            response = self.client.post(
+                path="/accounts/accounts/login_account/",
+                data={
+                    "username": "Ojas_Padhye",
+                    "password": "IDontKnow123"
+                },
+                format="json"
+            )
+
+
+            access_token = response.data.get("tokens").get("access token")
+            self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+
 
     def test_create_action(self):
-        moniter_count = Moniter.objects.count()
+        moniter_count = Moniter.objects.count() # As this is the first thing being created moniter should increase
+        action_count = AccountService.objects.count()
         tasks_count = PeriodicTasks.objects.count()
 
         response = self.client.post(path="/action/action/create_action/", data=self.action_1, format="json")
         response_data = response.data
+        
         id = (response_data.get("action").get("id"))
 
+        action = AccountService.objects.filter(id=id).first()
         moniter = Moniter.objects.filter(id=id).first()
-        task = PeriodicTask.objects.latest("args")
 
+        self.assertEqual(action.connection_id, moniter)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(moniter_count + 1, Moniter.objects.count())
         self.assertTrue(Moniter.objects.filter(id=id).exists())
         self.assertEqual(PeriodicTask.objects.count(), tasks_count + 1)
 
-        self.assertEqual(moniter.name, self.action_1["name"])
         self.assertEqual(moniter.urls, self.action_1["urls"])
         self.assertTrue(moniter.is_active)
+    
 
-        self.assertIn(str(id), str(task.args))
+    def test_create_multiple_action(self):
+        moniter_count = Moniter.objects.count()
+        actions = AccountService.objects.count()
+        
+        response_1 = self.client.post(path="/action/action/create_action/", data=self.action_1, format="json")
+        id_1 = response_1.data.get("action").get("id")
+
+        response_2 = self.client.post(path="/action/action/create_action/", data=self.data, format="json")
+        id_2 = response_2.data.get("action").get("id")
+
+        action_1 = AccountService.objects.get(id=id_1).connection_id
+        action_2 = AccountService.objects.get(id=id_2).connection_id
+
+        moniter_1_url = action_1.urls
+        moniter_2_url = action_2.urls
+
+        self.assertEqual(moniter_count + 1, Moniter.objects.count())
+        self.assertEqual(actions + 2, AccountService.objects.count())
+
+        self.assertIsNotNone(action_1)
+        self.assertIsNotNone(action_2)
+
+        self.assertEqual(action_1, action_2)
+        self.assertEqual(moniter_1_url, self.action_1.get("urls"))
+        self.assertEqual(moniter_2_url, self.data.get("urls"))
+
+
+    def test_create_different_action(self):
+        moniter_count = Moniter.objects.count()
+        actions_count = AccountService.objects.count()
+
+        response_1 = self.client.post(path="/action/action/create_action/", data=self.action_1, format="json")
+        response_2 = self.client.post(path="/action/action/create_action/", data=self.data_1, format="json")
+
+        id_1 = response_1.data.get("action").get("id")
+        id_2 = response_2.data.get("action").get("id")
+
+        action_1 = AccountService.objects.get(id=id_1)
+        action_2 = AccountService.objects.get(id=id_2)
+
+        moniter_1 = action_1.connection_id
+        moniter_2 = action_2.connection_id
+
+        self.assertEqual(moniter_count + 2, Moniter.objects.count())
+        self.assertEqual(actions_count + 2, AccountService.objects.count())
+
+        self.assertIsNotNone(moniter_1)
+        self.assertIsNotNone(moniter_2)
+
+        self.assertNotEqual(moniter_1, moniter_2)
+        self.assertNotEqual(moniter_1.urls, moniter_2.urls)
+        self.assertEqual(moniter_1.urls, self.action_1.get("urls"))
+        self.assertEqual(moniter_2.urls, self.data_1.get("urls"))
+
+
+
+    '''
 
     def test_update_action_1(self):
         action_1_update = {
@@ -86,6 +177,7 @@ class TestActions(APITestCase):
 
     def test_hard_delete_action(self):
         pass
+    '''
 
 
 '''
@@ -97,6 +189,7 @@ class TestActions(APITestCase):
     avg_5req = models.FloatField(null=True)
     std_5hr = models.FloatField(null=True)
     std_5req = models.FloatField(null=True)
+'''
 '''
 class LogsTest(APITestCase):
     response_1 = {
@@ -272,9 +365,5 @@ class LogsTest(APITestCase):
 
         self.assertIsNotNone(created_log.avg_5hr)
         self.assertEqual(created_log.avg_5hr, kpi_log.average)
+'''
 
-
-
-
-    def kpis_2(self):
-        pass

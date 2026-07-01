@@ -34,14 +34,18 @@ class TimeWheelSchedule: # In memory python deque Shit Scaling Nightmare
         self.slot = [deque() for _ in range(self.wheel_size)]
 
     def adition_of_task(self, action: AccountService):
-        frequency = int(float(action.frequency_hour))
+        frequency = float(action.frequency_hour)
+        logger.warning(frequency)
         if frequency <= 0:
-            logger.warning(f"Invalid frequency {frequency} for action {action.id}. Defaulting to 1.")
             frequency = 1
 
+        
+
         interval_mins = 60 // frequency
+        logger.info(interval_mins)
 
         slot_step = max(1, interval_mins // self.tick_duration_mins)
+        logger.info(slot_step)
 
         payload = {
             "action_id": action.id,
@@ -51,14 +55,16 @@ class TimeWheelSchedule: # In memory python deque Shit Scaling Nightmare
             "remaning_laps": 0, 
             "interval_mins": interval_mins
         }
+        logger.info(payload)
 
         target_slot = (self.counter + slot_step) % self.wheel_size
-        
-        self.slot[target_slot].append(payload)
+        logger.info(target_slot)
+
+        self.slot[int(target_slot)].append(payload)
         logger.info(f"Scheduled task {action.id} to run next in Slot {target_slot} (Step: {slot_step} slots)")
 
 
-    def tick(self):
+    def tick(self): 
         bucket = self.slot[self.counter]
         logger.info(f"Processing Slot {self.counter}: {bucket}")
 
@@ -103,10 +109,10 @@ class ActionServices:
     def __init__(self, data=None, user=None):
         self.user = user
         self.data = data
-        self.default_every = 12 # Every 5 mins or 12 times in hour
+        self.default_every = 12
 
 
-    def _check_and_create_action(self, action: AccountService): ## If Check completed returns true elses false
+    def _check_and_create_action(self, action: AccountService):
         if not action:
             raise Exception()
         
@@ -116,7 +122,7 @@ class ActionServices:
             with transaction.atomic():
                 moniter, created = Moniter.objects.get_or_create(
                     urls=urls,
-                    frequency_hour=action.frequency_hour,
+                    frequency_hour=12,
                     is_active=True
                 )
 
@@ -127,7 +133,7 @@ class ActionServices:
                 return True
 
         except Exception as e:
-            logger.warning(f"Action Service {e}")
+            logger.warning(f"Action Service: {e}")
             return False
 
     def create_action(self):

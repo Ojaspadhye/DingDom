@@ -14,7 +14,7 @@ class CreateActionSerializer(serializers.Serializer):
 
     urls = serializers.URLField()
     name = serializers.CharField(max_length=50)
-    frequency = serializers.IntegerField()
+    frequency = serializers.FloatField()
     expected_status = serializers.IntegerField()
     is_active = serializers.BooleanField()
 
