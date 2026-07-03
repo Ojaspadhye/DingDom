@@ -1,7 +1,7 @@
 ###
 POST http://127.0.0.1:8000/action/action/create_action/
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgyOTUzNDQxLCJpYXQiOjE3ODI5MTAyNDEsImp0aSI6IjYzZjQyMmM5NjJlMTQ1Njk5NDA5YjI2OWU5MzFlMDBkIiwidXNlcl9pZCI6IjEifQ.ITmrk7U07kkI5uaOAKuqmHN6FWW3rca_dqNPvzJFLMI
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzMTIyOTkzLCJpYXQiOjE3ODMwNzk3OTMsImp0aSI6IjM3ZjFjZWFiY2IyMTQ1NDk4NWZmOWRjYzE5MzA5ZGM5IiwidXNlcl9pZCI6IjEifQ.lyn2dcYMMDD_uwRI8IVAOJvSCB72EAxoWaIa6UIe06w
 
 {
     "urls": "https://httpbin.org/status/200",
@@ -24,7 +24,9 @@ PATCH http://127.0.0.1:8000/action/action/1/deactivate_actions/
 Content-Type: application/json
 
 ###
-GET http://127.0.0.1:8000/action/logs/?name=3
+GET http://127.0.0.1:8000/action/logs/?name=2
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzMTIyOTkzLCJpYXQiOjE3ODMwNzk3OTMsImp0aSI6IjM3ZjFjZWFiY2IyMTQ1NDk4NWZmOWRjYzE5MzA5ZGM5IiwidXNlcl9pZCI6IjEifQ.lyn2dcYMMDD_uwRI8IVAOJvSCB72EAxoWaIa6UIe06w
 
 
 ###

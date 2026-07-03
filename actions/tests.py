@@ -190,15 +190,32 @@ class TestActions(APITestCase):
     std_5hr = models.FloatField(null=True)
     std_5req = models.FloatField(null=True)
 '''
-'''
+
+
 class LogsTest(APITestCase):
+    action_1 = {
+        "urls": "https://httpbin.org/status/200",
+        "name": "http_bin",
+        "frequency": 12,
+        "expected_status": 200,
+        "is_active": True
+    }
+
+    action_2 = {
+        "urls": "https://httpbin.org/status/200",
+        "name": "http_bin",
+        "frequency": 5,
+        "expected_status": 200,
+        "is_active": True 
+    }
+
     response_1 = {
         "response_time": 1.587523846,
         "status_code": status.HTTP_200_OK,
         "error_message": None,
     }
 
-    response_1 = {
+    response_2 = {
         "response_time": 2.846365982,
         "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
         "error_message": "Cool! I am optimestic. I couldent think of any error message",
@@ -209,22 +226,74 @@ class LogsTest(APITestCase):
     }
 
     def setUp(self):
-        self.moniter = Moniter.objects.create(
-            urls="https://httpbin.org/status/200",
-            name="httpbin",
-            frequency_hour=45,
-            expected_status=200,
-            is_active=True
-        )
-
         self.moniter_magic = MagicMock()
 
-    def test_log_created(self):
-        response_1 = {
-            "response_time": 1.587523846,
-            "status_code": status.HTTP_200_OK,
-            "error_message": None,
-        }
+        self.user = UserAccount.objects.create(
+            username="Ojas_Padhye",
+            email="ojaspadhye@gmail.com",
+            is_active=True,
+            is_staff=False,
+        )
+        self.user.set_password("IDontKnow123")
+        self.user.save()
+
+        AccountTier.objects.create(
+            account=self.user,
+            limit=5
+        )
+
+        self.client = APIClient()
+
+        # Login doesn't usually need a frozen time context unless token expiry is tight
+        response = self.client.post(
+            path="/accounts/accounts/login_account/",
+            data={
+                "username": "Ojas_Padhye",
+                "password": "IDontKnow123"
+            },
+            format="json"
+        )
+        access_token = response.data.get("tokens").get("access token")
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+
+
+    def test_log_created_and_monitored_chronologically(self):
+        """Test that user actions and monitoring happen in strict chronological order."""
+        
+        # 1. Start the timeline freeze at 12:00:00
+        with freeze_time("2026-07-03 12:00:00") as frozen_time:
+            
+            # 2. Trigger Action 1
+            response_1 = self.client.post(
+                path="/action/action/create_action/",
+                data=self.action_1,
+                format="json"
+            )
+            
+            # Grab the service state right after Action 1
+            action_R1 = AccountService.objects.get(id=response_1.data.get("id"))
+            monitor_1 = action_R1.connection_id
+            
+            # Assert things look right for 12:00:00 here...
+            
+            # -------------------------------------------------------------
+            # 3. Move time forward 3 hours (12:00:00 -> 15:00:00)
+            # -------------------------------------------------------------
+            frozen_time.move_to("2026-07-03 15:00:00")
+            
+            # 4. Trigger Action 2 (Now executes perfectly at 15:00:00)
+            response_2 = self.client.post(
+                path="/action/action/create_action/",
+                data=self.action_2,
+                format="json"
+            )
+            
+            action_R2 = AccountService.objects.get(id=response_2.data.get("id"))
+            monitor_2 = action_R2.connection_id
+
+            # 5. Perform your simultaneous assertions
+            # Check your monitoring mock or verification logs here
+            # e.g., self.assertEqual(monitor_2.some_timestamp, timezone.now())
 
     @patch("requests.get")
     def test_successful_ping_creates_log(self, mock_get):
@@ -232,7 +301,7 @@ class LogsTest(APITestCase):
         mock_response.status_code = 200
         mock_get.return_value = mock_response
 
-        service = MoniterLogServices(self.moniter)
+        service = MoniterLogServices(moniter=self.moniter)
 
         result = service.create_logs()
 
@@ -241,7 +310,8 @@ class LogsTest(APITestCase):
         self.assertTrue(result["is_sucess"])
 
         self.assertEqual(PingLogs.objects.count(), 1)
-
+        
+    '''
     @patch("requests.get")
     def test_503_ping_records_failure(self, mock_get, *args, **kwargs):
         mock_response = MagicMock()
@@ -365,5 +435,5 @@ class LogsTest(APITestCase):
 
         self.assertIsNotNone(created_log.avg_5hr)
         self.assertEqual(created_log.avg_5hr, kpi_log.average)
-'''
+    '''
 

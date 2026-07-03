@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
 from actions.models import (AccountService)
+from accounts.models import (UserAccount)
 #from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
 from collections import deque
 import math
@@ -25,6 +26,28 @@ class RedisTimeWheelSchedule: # Redis More flexible
 
 
 from collections import deque
+
+class CheckUser:
+    def __init__(self, user: UserAccount, action: AccountService | None = None):
+        self.user = user
+        self.action = action
+
+    def check_useractions(self) -> bool:
+        services = AccountService.objects.filter(account=self.user)
+        logger.warning(services)
+        logger.warning(self.action)
+        if self.action not in services:
+            return False
+        return True
+
+    def check_creation(self) -> bool:
+        pass
+
+    def get_info(self) -> dict:
+        data = {}
+        data["created_at"] = self.action.created_at
+        return data
+
 
 class TimeWheelSchedule: # In memory python deque Shit Scaling Nightmare
     def __init__(self):
@@ -267,18 +290,31 @@ class ActionServices:
 
 
 class LogsServices:
-    @classmethod
-    def get_logs(cls, moniter):
+    def __init__(self, action: AccountService, user: UserAccount):
+        self.action = action
+        self.moniter = action.connection_id
+        self.frequency = action.frequency_hour
+        self.created_at = action.created_at
+        self.user = user
+    
+    def get_logs(self):
+        if not self.user:
+            return None
+        
+        user_checks = CheckUser(user=self.user, action=self.action)
+
         try:
-            logs_query_set = PingLogs.objects.filter(moniter=moniter).order_by("-timestamp")
-            
-            return logs_query_set
+            user_data = user_checks.get_info()
+            user_date_requirement = user_data.get("created_at")
+
+            queryset_logs = PingLogs.objects.filter(moniter=self.moniter, timestamp__gt=user_date_requirement)
+            return queryset_logs
         except Exception as e:
             logger.warning(e)
 
 
 class MoniterLogServices:
-    def __init__(self, moniter):
+    def __init__(self, moniter: Moniter):
         self.moniter = moniter
         self.url = moniter.urls
 

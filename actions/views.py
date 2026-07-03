@@ -4,9 +4,12 @@ from rest_framework.decorators import action
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from actions.serializer import (CreateActionSerializer, LogsSerializer, UpdateActionSerializer)
-from actions.services import (ActionServices, MoniterLogServices, LogsServices)
+from actions.services import (ActionServices, MoniterLogServices, LogsServices, AccountService, CheckUser)
 from rest_framework.response import Response
 from actions.models import PingLogs, Moniter
+from rest_framework.exceptions import PermissionDenied, NotFound
+from accounts.models import UserAccount
+from django.shortcuts import get_object_or_404
 import logging
 
 # Create your views here.
@@ -85,12 +88,27 @@ class DeactivateAction(viewsets.ViewSet):
 class GetPingLogs(viewsets.ReadOnlyModelViewSet):
     parser_classes = [JSONParser]
     serializer_class = LogsSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         moniter_name = self.request.query_params.get("name")
+        user = self.request.user
 
-        if not moniter_name:
-            return PingLogs.objects.none()
+        action = AccountService.objects.filter(id=moniter_name).first()
+        if not action:
+            raise NotFound("No item found with this name")
         
-        return LogsServices.get_logs(moniter_name)
+        user = CheckUser(user=user, action=action)
+        
+        if not user.check_useractions():
+            raise PermissionDenied("You cannot change bits in this")
+
+        action = get_object_or_404(AccountService, id=moniter_name)
+
+        if not action:
+            return AccountService.objects.none()
+        
+        obj = LogsServices(action=action, user=user)
+        print(obj.get_logs)
+        return obj.get_logs()
 
