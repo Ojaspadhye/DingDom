@@ -1,9 +1,8 @@
 from django.db import transaction
-from actions.models import (Moniter, PingLogs, PingLogsKpis, AccountService)
+from actions.models import (Moniter, PingLogs, PingLogsKpis, AccountService, ServiceDeactivation)
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
-from actions.models import (AccountService)
 from accounts.models import (UserAccount)
 #from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
 from collections import deque
@@ -21,11 +20,40 @@ Coexists check multiple didnt work that well.
 Using TimeWheeleSchedule method
 '''
 
+
+def get_workable_range(action: AccountService):
+    query_set = ServiceDeactivation.objects.filter(action=action).order_by("created_at")
+
+    working_ranges = [
+        (action.created_at, None)
+    ]
+
+    if not query_set.exists():
+        return working_ranges
+
+    working_ranges[0] = (
+        action.created_at,
+        query_set.first().created_at
+    )
+
+    start = None
+
+    for item in query_set:
+        if item.is_Activation:
+            start = item.created_at
+        elif start is not None:
+            working_ranges.append((start, item.created_at))
+            start = None
+
+    if start is not None:
+        working_ranges.append((start, None))
+
+    logger.info(working_ranges)
+    return working_ranges
+
 class RedisTimeWheelSchedule: # Redis More flexible
     pass
 
-
-from collections import deque
 
 class CheckUser:
     def __init__(self, user: UserAccount, action: AccountService | None = None):
@@ -46,6 +74,8 @@ class CheckUser:
     def get_info(self) -> dict:
         data = {}
         data["created_at"] = self.action.created_at
+        data["frequency"] = self.action.frequency_hour
+
         return data
 
 
@@ -85,6 +115,37 @@ class TimeWheelSchedule: # In memory python deque Shit Scaling Nightmare
 
         self.slot[int(target_slot)].append(payload)
         logger.info(f"Scheduled task {action.id} to run next in Slot {target_slot} (Step: {slot_step} slots)")
+    
+
+    def purge_task(self, action: AccountService):
+        frequency = float(action.frequency_hour)
+        interval_mins = 60 // frequency
+
+        payload = {
+            "action_id": action.id,
+            "moniter": action.connection_id if action.connection_id else None,
+            "url": action.url,
+            "expected_status": action.expected_status,
+            "remaning_laps": 0,
+            "interval_mins": interval_mins
+        }
+
+        for bucket in self.slot:
+            try:
+                while True:
+                    try:
+                        bucket.remove(payload)
+                    except ValueError:
+                        break
+                    except Exception as e:
+                        logger.warning(e)
+                        break
+
+
+            except ValueError:
+                continue
+            except Exception as e:
+                logger(e)
 
 
     def tick(self): 
@@ -215,34 +276,58 @@ class ActionServices:
             return {
                 "error": "Something went wrong in sever"
             }
+        
+    def _update_frequency(self, action: AccountService, frequency) -> bool:
+        try:
+            obj = TimeWheelSchedule()
+
+            purge = obj.purge_task(action=action)
+            insert_update = obj.adition_of_task(action=action)
+
+            return True
+
+
+        except Exception as e:
+            logger.warning(e)
+            return False
+
     
-    @classmethod
-    def update_action(cls, data, moniter):
-        name = data.get("name")
-        frequency_hour = data.get("frequency")
-        expected_status = data.get("expected_status")
+    def update_action(self, action: AccountService):
+        name = self.data.get("name")
+        frequency_hour = self.data.get("frequency")
+        expected_status = self.data.get("expected_status")
 
         try:
             if name:
-                moniter.name = name
+                action.name = name
+
             if frequency_hour:
-                moniter.frequency_hour = frequency_hour
+                action.frequency_hour = frequency_hour
+                updated_frequency_response = self._update_frequency(action=action, frequency=frequency_hour)
+                
+                if not updated_frequency_response:
+                    return {"error": "frequency_hour failed to updae"}
+
             if expected_status:
-                moniter.expected_status = expected_status
+                action.expected_status = expected_status
+            
+            logger.warning("Saving so it failes worng there ")
+            
+            action.save()
             
             return {
                 "message": "Action created Sucessfully",
                 "action": {
-                    "name": moniter.name,
-                    "urls": moniter.urls,
+                    "name": action.name,
+                    "urls": action.url,
                     "conditions": {
-                        "expected_status": moniter.expected_status,
-                        "frequency": moniter.frequency_hour,
-                        "is_active": moniter.is_active
+                        "expected_status": action.expected_status,
+                        "frequency": action.frequency_hour,
+                        "is_active": action.is_active
                     },
                     "dates": {
-                        "created_at": moniter.created_at,
-                        "last_checked": moniter.last_checked
+                        "created_at": action.created_at,
+                        "last_checked": action.connection_id.last_checked
                     }
                 }
             }
@@ -254,38 +339,54 @@ class ActionServices:
             }
 
 
-    '''
-    @classmethod
-    def deactivate_actions(cls, pk):
+    def _deactivate_actions(self, action: AccountService):
+        action_url = action.url
+        action_id = action.id
+        connection = action.connection_id
+
         try:
             with transaction.atomic():
+                if not AccountService.objects.filter(url=action_url).exclude(id=action_id).exists():
+                    connection.is_active = False
+                    connection.save(update_fields=["is_active"])
 
-                moniter = Moniter.objects.get(id=pk)
+                obj = TimeWheelSchedule()
 
-                if not moniter.is_active:
-                    return {"error": "Service already deactivated"}
+                purge = obj.purge_task(action=action)
+                action.is_active = False
 
-                periodic_task = PeriodicTask.objects.filter(
-                    name=f"Ping Monitor {moniter.id}"
-                ).first()
+                action.save(update_fields=["is_active"])
 
-                periodic_task.enabled = False
-                periodic_task.save(update_fields=["enabled"])
+                ServiceDeactivation.objects.create(
+                    action=action,
+                    is_Activation=False
+                )
 
-                moniter.is_active = False
-                moniter.save(update_fields=["is_active"])
-
-                PeriodicTasks.update_changed()
-
-                return {"message": "Deactivated successfully"}
-
-        except Moniter.DoesNotExist:
-            return {"error": "Monitor not found"}
-
+                logger.info(f"{action_id} is purged completly")
+                return True
+        
         except Exception as e:
-            logger.exception(e)
-            return {"error": "Something went wrong"}
-        '''
+            logger.warning(f"This is in _deactivation: {e}")
+            return False
+    
+
+    def deactivate_actions(self, pk):
+        if not AccountService.objects.filter(id=pk).exists():
+            return {"error": "object Dose not exist"}
+        
+        action = AccountService.objects.get(id=pk)
+
+        try:
+            is_deactivated = self._deactivate_actions(action=action)
+
+            if is_deactivated:
+                return {"message": "service deactivated"}
+            
+            return {"error": "Deactivation Failed"}
+        except Exception as e:
+            logger.warning(f"This is in deactivate_actions: {e}")
+            return {"error": "Somthing went wrong in deactivation"}
+
 
 
 
@@ -296,6 +397,21 @@ class LogsServices:
         self.frequency = action.frequency_hour
         self.created_at = action.created_at
         self.user = user
+
+    def _get_limit_logs(self, moniter: Moniter, action: AccountService):
+        limits = get_workable_range(action=action)
+        query_set = PingLogs.objects.filter(moniter=moniter)
+
+        for limit in limits:
+            lower_limit = limit[0]
+            upper_limit = limit[1]
+            
+            if not upper_limit:
+                query_set = query_set.filter(timestamp__gte=lower_limit)
+            else:
+                query_set = query_set.filter(timestamp__gte=lower_limit, timestamp__lte=upper_limit)
+        
+        return query_set
     
     def get_logs(self):
         if not self.user:
@@ -305,12 +421,13 @@ class LogsServices:
 
         try:
             user_data = user_checks.get_info()
-            user_date_requirement = user_data.get("created_at")
+            
+            queryset_logs = self._get_limit_logs(action=self.action, moniter=self.moniter)
 
-            queryset_logs = PingLogs.objects.filter(moniter=self.moniter, timestamp__gt=user_date_requirement)
+            logger.info("try for the get_logs works fine so far")
             return queryset_logs
         except Exception as e:
-            logger.warning(e)
+            logger.warning(f"Error is in get_logs services: {e}")
 
 
 class MoniterLogServices:

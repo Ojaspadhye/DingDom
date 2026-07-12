@@ -45,3 +45,12 @@ class PingLogsKpis(models.Model):
     average = models.FloatField(default=0.0)
     cal_timestamp_end = models.DateTimeField() # Expected Expiry time for this log. This is for refrence and testing only
 
+
+class ServiceDeactivation(models.Model):
+    action = models.ForeignKey(
+        AccountService,
+        on_delete=models.CASCADE
+    )
+    is_Activation = models.BooleanField(default=False) # Activation -> True or deactivation -> False
+    created_at = models.DateTimeField(auto_now_add=True)
+

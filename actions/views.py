@@ -47,15 +47,16 @@ class UpdateAction(viewsets.ViewSet):
 
     @action(methods=["patch", "post", "put"], detail=True)
     def update_actions(self, request, pk=None):
-        if not Moniter.objects.filter(id=pk).exists():
-            raise Moniter.DoesNotExist("The Moniter Dosenot exists")
+        if not AccountService.objects.filter(id=pk).exists():
+            raise AccountService.DoesNotExist("The Moniter Dosenot exists")
         
-        moniter = Moniter.objects.filter(id=pk).first()
+        action = AccountService.objects.filter(id=pk).first()
 
         serilaizer = UpdateActionSerializer(data=request.data)
         serilaizer.is_valid(raise_exception=True)
 
-        response = ActionServices.update_action(data=serilaizer.validated_data, moniter=moniter)
+        obj = ActionServices(data=serilaizer.validated_data)
+        response = obj.update_action(action=action)
 
         if "error" in response:
             return Response(response, status=status.HTTP_400_BAD_REQUEST)
@@ -65,20 +66,25 @@ class UpdateAction(viewsets.ViewSet):
 
 class DeactivateAction(viewsets.ViewSet):
     parser_classes = [JSONParser]
+    permission_classes = [IsAuthenticated]
 
     @action(methods=["patch"], detail=True)
     def deactivate_actions(self, request, pk=None):
         if not pk:
             return Response({"error": "id not mentioned"}, status=status.HTTP_400_BAD_REQUEST)
         
-        if not Moniter.objects.filter(id=pk).exists():
+        if not AccountService.objects.filter(id=pk).exists():
             return Response({
                 "error": "Object Not Found"
             },
             status=status.HTTP_404_NOT_FOUND
         )
-        
-        response = ActionServices.deactivate_actions(pk=pk)
+
+        user = self.request.user
+        logger.warning(user)
+
+        obj = ActionServices()
+        response = obj.deactivate_actions(pk=pk)
 
         if "error" in response:
             return Response(response, status=status.HTTP_400_BAD_REQUEST)

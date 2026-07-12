@@ -244,7 +244,6 @@ class LogsTest(APITestCase):
 
         self.client = APIClient()
 
-        # Login doesn't usually need a frozen time context unless token expiry is tight
         response = self.client.post(
             path="/accounts/accounts/login_account/",
             data={
@@ -258,30 +257,18 @@ class LogsTest(APITestCase):
 
 
     def test_log_created_and_monitored_chronologically(self):
-        """Test that user actions and monitoring happen in strict chronological order."""
-        
-        # 1. Start the timeline freeze at 12:00:00
         with freeze_time("2026-07-03 12:00:00") as frozen_time:
-            
-            # 2. Trigger Action 1
             response_1 = self.client.post(
                 path="/action/action/create_action/",
                 data=self.action_1,
                 format="json"
             )
-            
-            # Grab the service state right after Action 1
+
             action_R1 = AccountService.objects.get(id=response_1.data.get("id"))
             monitor_1 = action_R1.connection_id
-            
-            # Assert things look right for 12:00:00 here...
-            
-            # -------------------------------------------------------------
-            # 3. Move time forward 3 hours (12:00:00 -> 15:00:00)
-            # -------------------------------------------------------------
+
             frozen_time.move_to("2026-07-03 15:00:00")
             
-            # 4. Trigger Action 2 (Now executes perfectly at 15:00:00)
             response_2 = self.client.post(
                 path="/action/action/create_action/",
                 data=self.action_2,
@@ -291,9 +278,6 @@ class LogsTest(APITestCase):
             action_R2 = AccountService.objects.get(id=response_2.data.get("id"))
             monitor_2 = action_R2.connection_id
 
-            # 5. Perform your simultaneous assertions
-            # Check your monitoring mock or verification logs here
-            # e.g., self.assertEqual(monitor_2.some_timestamp, timezone.now())
 
     @patch("requests.get")
     def test_successful_ping_creates_log(self, mock_get):

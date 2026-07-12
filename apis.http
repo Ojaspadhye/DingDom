@@ -1,12 +1,12 @@
 ###
 POST http://127.0.0.1:8000/action/action/create_action/
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzMTIyOTkzLCJpYXQiOjE3ODMwNzk3OTMsImp0aSI6IjM3ZjFjZWFiY2IyMTQ1NDk4NWZmOWRjYzE5MzA5ZGM5IiwidXNlcl9pZCI6IjEifQ.lyn2dcYMMDD_uwRI8IVAOJvSCB72EAxoWaIa6UIe06w
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzOTIzNzcyLCJpYXQiOjE3ODM4ODA1NzIsImp0aSI6IjI0YWZjZTVkZjY3NjQ4YWQ4MDZkNWIyODRlZTYzOTIyIiwidXNlcl9pZCI6IjEifQ.fxzirSh5pbJwnRNKNs7irc6yjwB_U1zSdDUs4bwdHIg
 
 {
     "urls": "https://httpbin.org/status/200",
-    "name": "httpbin",
-    "frequency": 6,
+    "name": "httpbin_3",
+    "frequency": 12,
     "expected_status": 200,
     "is_active": true
 }
@@ -14,20 +14,22 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY
 ###
 PATCH  http://127.0.0.1:8000/action/action/1/update_actions/
 Content-Type: application/json
-
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzOTIzNzcyLCJpYXQiOjE3ODM4ODA1NzIsImp0aSI6IjI0YWZjZTVkZjY3NjQ4YWQ4MDZkNWIyODRlZTYzOTIyIiwidXNlcl9pZCI6IjEifQ.fxzirSh5pbJwnRNKNs7irc6yjwB_U1zSdDUs4bwdHIg
 {
-    "name": "up_song_youtube"
+    "name": "httpbin_1",
+    "frequency": 12
 }
 
 ###
 PATCH http://127.0.0.1:8000/action/action/1/deactivate_actions/
 Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzOTIzNzcyLCJpYXQiOjE3ODM4ODA1NzIsImp0aSI6IjI0YWZjZTVkZjY3NjQ4YWQ4MDZkNWIyODRlZTYzOTIyIiwidXNlcl9pZCI6IjEifQ.fxzirSh5pbJwnRNKNs7irc6yjwB_U1zSdDUs4bwdHIg
+
 
 ###
-GET http://127.0.0.1:8000/action/logs/?name=2
+GET http://127.0.0.1:8000/action/logs/?name=1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzMTIyOTkzLCJpYXQiOjE3ODMwNzk3OTMsImp0aSI6IjM3ZjFjZWFiY2IyMTQ1NDk4NWZmOWRjYzE5MzA5ZGM5IiwidXNlcl9pZCI6IjEifQ.lyn2dcYMMDD_uwRI8IVAOJvSCB72EAxoWaIa6UIe06w
-
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzOTIzNzcyLCJpYXQiOjE3ODM4ODA1NzIsImp0aSI6IjI0YWZjZTVkZjY3NjQ4YWQ4MDZkNWIyODRlZTYzOTIyIiwidXNlcl9pZCI6IjEifQ.fxzirSh5pbJwnRNKNs7irc6yjwB_U1zSdDUs4bwdHIg
 
 ###
 POST http://127.0.0.1:8000/accounts/accounts/create_account/
