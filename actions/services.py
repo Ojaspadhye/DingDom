@@ -4,6 +4,9 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg
 from accounts.models import (UserAccount)
+from django.db.models.functions import ExtractMinute
+from django.db.models.functions import ExtractMinute, Mod
+from django.db.models import Value
 #from django_celery_beat.models import (PeriodicTask, PeriodicTasks, IntervalSchedule)
 from collections import deque
 import math
@@ -413,6 +416,20 @@ class LogsServices:
         
         return query_set
     
+    def _get_frequency_logs(self, frequency: float, action: AccountService, query_set):
+        target_count = int(frequency) 
+        log_ids = list(query_set.order_by('timestamp').values_list('id', flat=True))
+        total_logs = len(log_ids)
+
+        if total_logs <= target_count or target_count <= 0:
+            return query_set # Return everything if they want more than we have
+        step = total_logs // target_count
+
+        sampled_ids = log_ids[::step][:target_count]
+
+        return query_set.filter(id__in=sampled_ids)
+
+    
     def get_logs(self):
         if not self.user:
             return None
@@ -421,8 +438,11 @@ class LogsServices:
 
         try:
             user_data = user_checks.get_info()
+            logger.info(user_data)
             
             queryset_logs = self._get_limit_logs(action=self.action, moniter=self.moniter)
+            logger.info(f"Queryset is working: {queryset_logs}")
+            #queryset_logs = self._get_frequency_logs(query_set=queryset_logs, frequency=self.action.frequency_hour)
 
             logger.info("try for the get_logs works fine so far")
             return queryset_logs
